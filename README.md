@@ -23,3 +23,4 @@ In conclusion, the 4-stage pipelined processor represents a foundational impleme
 
 #OUTPUT:
 
+![Image](https://github.com/user-attachments/assets/a18d6d0f-9b8b-4ee4-9d77-82793a71e2e5)
