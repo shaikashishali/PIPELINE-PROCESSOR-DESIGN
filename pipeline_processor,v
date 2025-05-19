@@ -1,0 +1,102 @@
+// pipeline_processor.v
+module pipeline_processor (
+    input clk,
+    input reset
+);
+
+    // Program Counter
+    reg [4:0] pc = 0;
+
+    // ---------- Memories ----------
+    reg [15:0] instr_mem [0:31];  // Instruction memory
+    reg [15:0] reg_file [0:7];    // 8 General purpose registers
+    reg [15:0] data_mem [0:31];   // Data memory
+
+    // Initialize instruction memory
+    initial begin
+        // Format: opcode (3) | rd (3) | rs1 (3) | rs2 (3) | unused (4)
+        instr_mem[0] = 16'b000_001_010_011_0000; // ADD R1, R2, R3
+        instr_mem[1] = 16'b001_100_101_110_0000; // SUB R4, R5, R6
+        instr_mem[2] = 16'b010_111_000_000_0000; // LOAD R7, [R0]
+
+        // Sample register values
+        reg_file[2] = 10;
+        reg_file[3] = 5;
+        reg_file[5] = 20;
+        reg_file[6] = 8;
+        reg_file[0] = 0;
+
+        // Data memory
+        data_mem[0] = 99;
+    end
+
+    // ---------- IF Stage ----------
+    wire [15:0] instr = instr_mem[pc];
+
+    // ---------- Pipeline Registers ----------
+    reg [15:0] IF_ID_instr;
+
+    reg [2:0] ID_EX_opcode, ID_EX_rd;
+    reg [15:0] ID_EX_val1, ID_EX_val2;
+
+    reg [2:0] EX_MEM_opcode, EX_MEM_rd;
+    reg [15:0] EX_MEM_result;
+
+    // ---------- ID Stage ----------
+    wire [2:0] opcode = IF_ID_instr[15:13];
+    wire [2:0] rd     = IF_ID_instr[12:10];
+    wire [2:0] rs1    = IF_ID_instr[9:7];
+    wire [2:0] rs2    = IF_ID_instr[6:4];
+
+    wire [15:0] val1 = reg_file[rs1];
+    wire [15:0] val2 = reg_file[rs2];
+
+    // ---------- EX Stage ----------
+    reg [15:0] ex_result;
+    always @(*) begin
+        case (ID_EX_opcode)
+            3'b000: ex_result = ID_EX_val1 + ID_EX_val2;  // ADD
+            3'b001: ex_result = ID_EX_val1 - ID_EX_val2;  // SUB
+            3'b010: ex_result = data_mem[ID_EX_val1];     // LOAD
+            default: ex_result = 16'd0;
+        endcase
+    end
+
+    // ---------- Pipeline Register Updates ----------
+    always @(posedge clk) begin
+        if (reset) begin
+            pc <= 0;
+            IF_ID_instr <= 0;
+            ID_EX_opcode <= 0;
+            ID_EX_rd <= 0;
+            ID_EX_val1 <= 0;
+            ID_EX_val2 <= 0;
+            EX_MEM_opcode <= 0;
+            EX_MEM_rd <= 0;
+            EX_MEM_result <= 0;
+        end else begin
+            // WB Stage
+            if (EX_MEM_opcode <= 3'b010) begin
+                reg_file[EX_MEM_rd] <= EX_MEM_result;
+            end
+
+            // IF → ID
+            IF_ID_instr <= instr;
+
+            // ID → EX
+            ID_EX_opcode <= opcode;
+            ID_EX_rd     <= rd;
+            ID_EX_val1   <= val1;
+            ID_EX_val2   <= val2;
+
+            // EX → MEM/WB
+            EX_MEM_opcode <= ID_EX_opcode;
+            EX_MEM_rd     <= ID_EX_rd;
+            EX_MEM_result <= ex_result;
+
+            // Next PC
+            pc <= pc + 1;
+        end
+    end
+
+endmodule
